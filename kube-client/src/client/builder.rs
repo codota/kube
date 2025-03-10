@@ -1,3 +1,5 @@
+use std::env;
+use std::str::FromStr;
 use bytes::Bytes;
 use http::{header::HeaderMap, Request, Response};
 use hyper::{
@@ -12,6 +14,7 @@ use hyper_util::{
 };
 
 use std::time::Duration;
+use hyper_util::rt::TokioTimer;
 use tower::{util::BoxService, BoxError, Layer, Service, ServiceBuilder};
 use tower_http::{
     classify::ServerErrorsFailureClass, map_response_body::MapResponseBodyLayer, trace::TraceLayer,
@@ -171,7 +174,10 @@ where
         connector.set_read_timeout(config.read_timeout);
         connector.set_write_timeout(config.write_timeout);
 
-        hyper_util::client::legacy::Builder::new(TokioExecutor::new()).build(connector)
+        hyper_util::client::legacy::Builder::new(TokioExecutor::new())
+            .pool_idle_timeout(tcp_keepalive_interval())
+            .pool_timer(TokioTimer::new())
+            .build(connector)
     };
 
     let stack = ServiceBuilder::new().layer(config.base_uri_layer()).into_inner();
@@ -251,6 +257,15 @@ where
         ),
         default_ns,
     ))
+}
+
+fn tcp_keepalive_interval() -> Duration {
+    let secs = 
+        env::var("KUBE_RS_TCP_KEEPALIVE_INTERVAL_SECONDS").ok()
+            .and_then(|s| u64::from_str(&s).ok())
+            .unwrap_or(30);
+    
+    Duration::from_secs(secs)
 }
 
 #[cfg(test)]
