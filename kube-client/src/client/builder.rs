@@ -84,6 +84,7 @@ impl TryFrom<Config> for ClientBuilder<GenericService> {
     fn try_from(config: Config) -> Result<Self> {
         let mut connector = HttpConnector::new();
         connector.enforce_http(false);
+        connector.set_keepalive(Some(tcp_keepalive_interval()));
 
         #[cfg(all(feature = "aws-lc-rs", feature = "rustls-tls"))]
         {
